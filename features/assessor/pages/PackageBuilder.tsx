@@ -13,7 +13,9 @@ interface PackageBuilderProps {
 
 const PackageBuilder: React.FC<PackageBuilderProps> = ({ kmsPackages, cbtPackages, onSync, onSave }) => {
   const [view, setView] = useState<'LIST' | 'BUILDER' | 'KMS_DETAIL'>('LIST');
+  const [selectedKmsForView, setSelectedKmsForView] = useState<KmsPackage | null>(null);
   const [kmsSearchTerm, setKmsSearchTerm] = useState('');
+  const [showKeys, setShowKeys] = useState(false);
 
   // Builder States
   const [newPkgName, setNewPkgName] = useState('');
@@ -26,6 +28,22 @@ const PackageBuilder: React.FC<PackageBuilderProps> = ({ kmsPackages, cbtPackage
   const [selectedQuestions, setSelectedQuestions] = useState<Question[]>([]);
   const [filters, setFilters] = useState({ type: 'ALL', difficulty: 'ALL' });
   const [randomize, setRandomize] = useState({ questions: true, options: true });
+
+  const handleViewKms = (pkg: KmsPackage) => {
+    setSelectedKmsForView(pkg);
+    setShowKeys(false); // Reset toggle when changing package
+    setView('KMS_DETAIL');
+  };
+
+  // Helper to format answer with label if MCQ
+  const getOptionLabel = (index: number) => String.fromCharCode(65 + index);
+  const formatAnswerWithLabel = (q: Question, answerValue: any) => {
+    if (q.type === QuestionType.MULTIPLE_CHOICE && q.options) {
+      const idx = q.options.indexOf(String(answerValue));
+      if (idx !== -1) return `${getOptionLabel(idx)}. ${answerValue}`;
+    }
+    return answerValue;
+  };
 
   // Columns for the master data table
   const kmsColumns: Column<KmsPackage>[] = [
@@ -58,7 +76,15 @@ const PackageBuilder: React.FC<PackageBuilderProps> = ({ kmsPackages, cbtPackage
     },
     { 
       header: 'Aksi', 
-      accessor: () => <Button variant="ghost" className="text-xs font-bold text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100">Tinjau Soal</Button>,
+      accessor: (p) => (
+        <Button 
+          variant="ghost" 
+          onClick={() => handleViewKms(p)}
+          className="text-xs font-bold text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100"
+        >
+          Tinjau Soal
+        </Button>
+      ),
       className: 'text-right'
     }
   ];
@@ -101,20 +127,21 @@ const PackageBuilder: React.FC<PackageBuilderProps> = ({ kmsPackages, cbtPackage
 
   // Composition Stats
   const stats = useMemo(() => {
-    const total = selectedQuestions.length || 1;
-    const easy = selectedQuestions.filter(q => q.difficulty === 'EASY').length;
-    const medium = selectedQuestions.filter(q => q.difficulty === 'MEDIUM').length;
-    const hard = selectedQuestions.filter(q => q.difficulty === 'HARD').length;
-    const totalWeight = selectedQuestions.reduce((acc, q) => acc + q.weight, 0);
+    const list = view === 'KMS_DETAIL' && selectedKmsForView ? selectedKmsForView.questions : selectedQuestions;
+    const total = list.length || 1;
+    const easy = list.filter(q => q.difficulty === 'EASY').length;
+    const medium = list.filter(q => q.difficulty === 'MEDIUM').length;
+    const hard = list.filter(q => q.difficulty === 'HARD').length;
+    const totalWeight = list.reduce((acc, q) => acc + q.weight, 0);
 
     return {
       easyPct: (easy / total) * 100,
       mediumPct: (medium / total) * 100,
       hardPct: (hard / total) * 100,
       totalWeight,
-      count: selectedQuestions.length
+      count: list.length
     };
-  }, [selectedQuestions]);
+  }, [selectedQuestions, view, selectedKmsForView]);
 
   const toggleQuestion = (q: Question) => {
     const exists = selectedQuestions.find(sq => sq.id === q.id);
@@ -158,6 +185,141 @@ const PackageBuilder: React.FC<PackageBuilderProps> = ({ kmsPackages, cbtPackage
     setSelectedQuestions([]);
     setKmsSearchTerm('');
   };
+
+  if (view === 'KMS_DETAIL' && selectedKmsForView) {
+    return (
+      <div className="flex flex-col gap-8 pb-20 animate-in slide-in-from-right duration-500">
+        <div className="flex items-center justify-between bg-white/80 backdrop-blur-sm sticky top-0 z-20 py-4 -mx-2 px-4 border-b">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" onClick={() => setView('LIST')} className="hover:bg-slate-100">
+              ← Kembali
+            </Button>
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">{selectedKmsForView.name}</h2>
+              <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Detail Paket Sumber (Read-Only)</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-8">
+            <div className="flex flex-col items-end">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Lihat Kunci Jawaban</p>
+              <button 
+                onClick={() => setShowKeys(!showKeys)}
+                className={`w-12 h-6 rounded-full transition-all relative ${showKeys ? 'bg-indigo-600 shadow-lg shadow-indigo-100' : 'bg-slate-200'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${showKeys ? 'left-7' : 'left-1'}`} />
+              </button>
+            </div>
+            <Badge variant="info" className="py-2 px-6 text-sm">{selectedKmsForView.topic}</Badge>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-12 gap-8 items-start">
+          <div className="col-span-12 lg:col-span-8 space-y-10">
+            <Card className="p-8">
+              <h3 className="text-xs font-black uppercase text-slate-400 tracking-widest border-b pb-3 mb-8">Daftar Pertanyaan dalam Paket</h3>
+              <div className="space-y-12">
+                {selectedKmsForView.questions.map((q, idx) => (
+                  <div key={q.id} className="p-8 bg-white border border-slate-100 rounded-[2rem] shadow-sm relative hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <span className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-lg shadow-lg shadow-indigo-100">{idx + 1}</span>
+                        <Badge variant={q.difficulty === 'EASY' ? 'success' : q.difficulty === 'MEDIUM' ? 'warning' : 'danger'}>
+                          {q.difficulty}
+                        </Badge>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{q.type.replace('_', ' ')}</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Bobot Skor</p>
+                        <p className="text-lg font-black text-indigo-600">{q.weight}</p>
+                      </div>
+                    </div>
+                    
+                    <p className="text-xl font-bold text-slate-800 leading-relaxed mb-6">{q.text}</p>
+                    
+                    {q.options && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                        {q.options.map((opt, i) => (
+                          <div key={i} className="px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700">
+                            <span className="text-indigo-400 mr-2">{getOptionLabel(i)}.</span> {opt}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {showKeys && q.correctAnswer && (
+                      <div className="mt-8 p-6 bg-indigo-50/40 border-2 border-indigo-100 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-300">
+                        <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                          KUNCI JAWABAN
+                        </p>
+                        <div className="text-sm font-black text-indigo-800 leading-relaxed uppercase bg-white/50 p-3 rounded-lg border border-indigo-100/50">
+                          {formatAnswerWithLabel(q, q.correctAnswer)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+
+          <div className="col-span-12 lg:col-span-4 sticky top-24">
+            <Card className="p-8 space-y-8 shadow-2xl border-indigo-100 rounded-[2rem]">
+              <div className="space-y-4">
+                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                  Statistik Paket
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-5 bg-slate-900 text-white rounded-[1.5rem] shadow-xl shadow-slate-200">
+                    <p className="text-[10px] font-bold opacity-60 uppercase tracking-widest">Total Soal</p>
+                    <p className="text-3xl font-black">{stats.count}</p>
+                  </div>
+                  <div className="p-5 bg-indigo-50 border border-indigo-100 rounded-[1.5rem]">
+                    <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Akumulasi Bobot</p>
+                    <p className="text-3xl font-black text-indigo-700">{stats.totalWeight}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">Komposisi Kesulitan</h4>
+                <div className="space-y-6">
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                      <span className="text-green-600">Mudah</span>
+                      <span className="text-slate-400">{Math.round(stats.easyPct)}%</span>
+                    </div>
+                    <ProgressBar value={stats.easyPct} color="bg-green-500" />
+                  </div>
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                      <span className="text-amber-500">Sedang</span>
+                      <span className="text-slate-400">{Math.round(stats.mediumPct)}%</span>
+                    </div>
+                    <ProgressBar value={stats.mediumPct} color="bg-amber-500" />
+                  </div>
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                      <span className="text-red-500">Sulit</span>
+                      <span className="text-slate-400">{Math.round(stats.hardPct)}%</span>
+                    </div>
+                    <ProgressBar value={stats.hardPct} color="bg-red-500" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-8 border-t border-slate-100">
+                <p className="text-[10px] text-slate-400 italic font-medium leading-relaxed uppercase text-center px-4">
+                  Data ini disinkronisasi langsung dari Knowledge Management System (KMS). Perubahan pada sumber akan berdampak pada sinkronisasi berikutnya.
+                </p>
+              </div>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (view === 'BUILDER') {
     return (

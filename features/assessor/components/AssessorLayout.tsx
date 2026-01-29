@@ -22,7 +22,7 @@ const AssessorLayout: React.FC<AssessorLayoutProps> = ({
 }) => {
   const t = translations[lang];
 
-  // Menu labels are now dynamic and react to lang state changes
+  // Menu labels are dynamic and react to lang state changes
   const menus = [
     { id: 'dashboard', label: t.assessor.dashboard, icon: '📊' },
     { id: 'builder', label: t.assessor.packageBuilder, icon: '📦' },

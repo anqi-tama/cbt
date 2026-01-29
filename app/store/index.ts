@@ -17,6 +17,51 @@ const DEMO_QUESTIONS: Question[] = [
   { id: 'q3', type: QuestionType.ESSAY, difficulty: 'HARD', topic: 'Networking', text: 'Jelaskan perbedaan mendalam antara TCP dan UDP.', weight: 30, correctAnswer: 'TCP adalah berorientasi koneksi, menjamin pengiriman paket secara berurutan. UDP adalah tanpa koneksi, lebih cepat tapi tidak menjamin pengiriman paket.' }
 ];
 
+export const MOCK_KMS_PACKAGES: KmsPackage[] = [
+  {
+    id: 'kms-1',
+    name: 'Bank Soal Jaringan Dasar',
+    topic: 'Networking',
+    totalQuestions: 4,
+    composition: { easy: 2, medium: 1, hard: 1 },
+    lastSync: new Date().toISOString(),
+    syncStatus: 'SUCCESS',
+    questions: [
+      { id: 'k1-q1', type: QuestionType.MULTIPLE_CHOICE, difficulty: 'EASY', topic: 'Networking', text: 'Protokol yang digunakan untuk mengirim email adalah?', options: ['SMTP', 'HTTP', 'FTP'], weight: 10, sourcePackageId: 'kms-1', correctAnswer: 'SMTP' },
+      { id: 'k1-q2', type: QuestionType.MULTIPLE_CHOICE, difficulty: 'MEDIUM', topic: 'Networking', text: 'Berapakah jumlah bit pada IPv6?', options: ['32', '64', '128'], weight: 15, sourcePackageId: 'kms-1', correctAnswer: '128' },
+      { id: 'k1-q3', type: QuestionType.SHORT_ANSWER, difficulty: 'EASY', topic: 'Networking', text: 'Apa kepanjangan dari LAN?', weight: 10, sourcePackageId: 'kms-1', correctAnswer: 'Local Area Network' },
+      { id: 'k1-q4', type: QuestionType.ESSAY, difficulty: 'HARD', topic: 'Networking', text: 'Jelaskan fungsi dari Subnet Mask.', weight: 25, sourcePackageId: 'kms-1', correctAnswer: 'Subnet mask digunakan untuk membedakan Network ID dan Host ID pada alamat IP.' },
+    ]
+  },
+  {
+    id: 'kms-2',
+    name: 'Hardware & OS Master',
+    topic: 'Hardware',
+    totalQuestions: 3,
+    composition: { easy: 1, medium: 2, hard: 0 },
+    lastSync: new Date(Date.now() - 86400000).toISOString(),
+    syncStatus: 'SUCCESS',
+    questions: [
+      { id: 'k2-q1', type: QuestionType.MULTIPLE_CHOICE, difficulty: 'EASY', topic: 'Hardware', text: 'Alat input pada komputer adalah?', options: ['Monitor', 'Keyboard', 'Printer'], weight: 5, sourcePackageId: 'kms-2', correctAnswer: 'Keyboard' },
+      { id: 'k2-q2', type: QuestionType.MULTIPLE_CHOICE, difficulty: 'MEDIUM', topic: 'Hardware', text: 'Penyimpanan sementara pada komputer disebut?', options: ['Harddisk', 'RAM', 'ROM'], weight: 10, sourcePackageId: 'kms-2', correctAnswer: 'RAM' },
+      { id: 'k2-q3', type: QuestionType.SHORT_ANSWER, difficulty: 'MEDIUM', topic: 'OS', text: 'Sebutkan contoh sistem operasi open source.', weight: 15, sourcePackageId: 'kms-2', correctAnswer: 'Linux' },
+    ]
+  },
+  {
+    id: 'kms-3',
+    name: 'Logika Pemrograman (Expert)',
+    topic: 'Programming',
+    totalQuestions: 2,
+    composition: { easy: 0, medium: 0, hard: 2 },
+    lastSync: new Date(Date.now() - 172800000).toISOString(),
+    syncStatus: 'SUCCESS',
+    questions: [
+      { id: 'k3-q1', type: QuestionType.ESSAY, difficulty: 'HARD', topic: 'Programming', text: 'Analisis kompleksitas algoritma Quick Sort dalam kasus terburuk.', weight: 40, sourcePackageId: 'kms-3', correctAnswer: 'O(n^2) terjadi jika pivot yang dipilih selalu elemen terkecil atau terbesar.' },
+      { id: 'k3-q2', type: QuestionType.ESSAY, difficulty: 'HARD', topic: 'Programming', text: 'Buatlah rancangan database untuk sistem E-commerce sederhana.', weight: 50, sourcePackageId: 'kms-3', correctAnswer: 'Rancangan harus mencakup tabel Users, Products, Orders, dan Order_Items dengan relasi yang tepat.' },
+    ]
+  }
+];
+
 export const MOCK_EXAMS: ExamSession[] = [
   {
     id: 'exam-1',
@@ -70,21 +115,6 @@ export const MOCK_SUBMISSIONS: Submission[] = [
       { timestamp: new Date(Date.now() - 1800000).toISOString(), type: 'SESSION_START', label: 'Sesi dimulai' },
       { timestamp: new Date(Date.now() - 1200000).toISOString(), type: 'FOCUS_LOST', label: 'Kehilangan fokus (Switch tab/window)' },
     ]
-  },
-  {
-    id: 'sub-disconnected',
-    candidateName: 'Budi Raharjo',
-    examId: 'exam-1',
-    status: 'DISCONNECTED',
-    progress: 12,
-    isOnline: false,
-    lastActive: new Date(Date.now() - 900000).toISOString(),
-    answers: {},
-    flags: ['Koneksi sering terputus'],
-    timelineEvents: [
-      { timestamp: new Date(Date.now() - 2000000).toISOString(), type: 'SESSION_START', label: 'Sesi dimulai' },
-      { timestamp: new Date(Date.now() - 900000).toISOString(), type: 'CONNECTION_LOST', label: 'Koneksi terputus' },
-    ]
   }
 ];
 
@@ -97,7 +127,7 @@ export const useAppState = () => {
   const [lang, setLang] = useState<'id' | 'en'>('id');
   const [activeExam, setActiveExam] = useState<ExamSession | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>(MOCK_SUBMISSIONS);
-  const [kmsPackages, setKmsPackages] = useState<KmsPackage[]>([]);
+  const [kmsPackages, setKmsPackages] = useState<KmsPackage[]>(MOCK_KMS_PACKAGES);
   const [cbtPackages, setCbtPackages] = useState<ExamSession[]>(MOCK_EXAMS);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(MOCK_AUDIT_LOGS);
   
@@ -108,7 +138,11 @@ export const useAppState = () => {
     currentQuestionIndex: 0
   });
 
-  const syncKms = async () => {};
+  const syncKms = async () => {
+    // Simulate re-sync
+    setKmsPackages(MOCK_KMS_PACKAGES);
+  };
+  
   const createCbtPackage = (newPackage: ExamSession) => setCbtPackages(prev => [newPackage, ...prev]);
   const updateAnswer = (questionId: string, answer: string | number) => {
     setExamState(prev => ({ ...prev, answers: { ...prev.answers, [questionId]: { questionId, answer, lastSaved: new Date().toISOString() } } }));

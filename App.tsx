@@ -1,15 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
-import { UserRole, Submission, QuestionType, ExamSession } from './shared/types';
-import { useAppState } from './app/store';
-import { translations } from './app/i18n';
-import { Button, Card, Badge, LanguageSwitcher } from './shared/ui';
+import { UserRole, Submission } from './shared/types/index';
+import { useAppState } from './app/store/index';
+import { translations } from './app/i18n/index';
+import { Button, Card, Badge, LanguageSwitcher } from './shared/ui/index';
 import ExamView from './features/participant/ExamView';
 import AssessorLayout from './features/assessor/components/AssessorLayout';
 import AssessorDashboard from './features/assessor/pages/Dashboard';
 import Monitoring from './features/assessor/pages/Monitoring';
 import AuditLogs from './features/assessor/pages/AuditLogs';
 import Review from './features/assessor/pages/Review';
+import PackageBuilder from './features/assessor/pages/PackageBuilder';
 
 const App: React.FC = () => {
   const { 
@@ -21,32 +22,25 @@ const App: React.FC = () => {
     submissions,
     updateSubmissionAnswer,
     auditLogs,
-    finalizeSubmission,
-    kmsPackages,
     cbtPackages,
+    kmsPackages,
     syncKms,
     createCbtPackage
   } = useAppState();
 
-  const [preExamConfirmed, setPreExamConfirmed] = useState(false);
   const [examFinished, setExamFinished] = useState(false);
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [selectedSub, setSelectedSub] = useState<Submission | null>(null);
 
   const t = translations[lang];
 
-  // Ensure HTML attributes update for accessibility and future RTL
   useEffect(() => {
     document.documentElement.lang = lang;
     document.documentElement.dir = 'ltr';
   }, [lang]);
 
-  // Handle language switch with immediate reactive update
   const handleLangSwitch = (newLang: 'id' | 'en') => {
     setLang(newLang);
-    // If the user wants a full reload for absolute consistency:
-    // localStorage.setItem('cbt_lang_pref', newLang);
-    // window.location.reload();
   };
 
   if (!role) {
@@ -81,20 +75,35 @@ const App: React.FC = () => {
   if (role === UserRole.ASSESSOR) {
     const renderContent = () => {
       switch (activeMenu) {
-        case 'dashboard': return <AssessorDashboard submissions={submissions} exams={cbtPackages} onSelectSubmission={setSelectedSub} />;
-        case 'monitoring': return <Monitoring submissions={submissions} exams={cbtPackages} lang={lang} />;
-        case 'review': return (
-          <Review 
-            submissions={submissions} 
-            exams={cbtPackages} 
-            lang={lang} 
-            onUpdateScore={(subId, qId, score, feedback) => {
-              updateSubmissionAnswer(subId, qId, { score, feedback });
-            }}
-          />
-        );
-        case 'audit': return <AuditLogs logs={auditLogs} />;
-        default: return <AssessorDashboard submissions={submissions} exams={cbtPackages} onSelectSubmission={setSelectedSub} />;
+        case 'dashboard': 
+          return <AssessorDashboard submissions={submissions} exams={cbtPackages} onSelectSubmission={(s) => { setSelectedSub(s); setActiveMenu('review'); }} />;
+        case 'builder':
+          return <PackageBuilder kmsPackages={kmsPackages} cbtPackages={cbtPackages} onSync={syncKms} onSave={createCbtPackage} />;
+        case 'monitoring': 
+          return <Monitoring submissions={submissions} exams={cbtPackages} lang={lang} />;
+        case 'review': 
+          return (
+            <Review 
+              submissions={submissions} 
+              exams={cbtPackages} 
+              lang={lang} 
+              onUpdateScore={(subId, qId, score, feedback) => {
+                updateSubmissionAnswer(subId, qId, { score, feedback });
+              }}
+            />
+          );
+        case 'audit': 
+          return <AuditLogs logs={auditLogs} />;
+        case 'finalization':
+          return (
+            <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-slate-200">
+               <span className="text-6xl mb-6">🔒</span>
+               <h3 className="text-xl font-bold text-slate-800 uppercase">Halaman Finalisasi</h3>
+               <p className="text-slate-400 mt-2">Fitur ini sedang dalam pengembangan.</p>
+            </div>
+          );
+        default: 
+          return <AssessorDashboard submissions={submissions} exams={cbtPackages} onSelectSubmission={setSelectedSub} />;
       }
     };
 
