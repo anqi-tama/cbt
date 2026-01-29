@@ -4,17 +4,17 @@ import { UserRole, ExamSession, ExamState, Submission, ExamStatus, Question, Que
 
 // Mock data for initial questions
 export const QUESTION_BANK: Question[] = [
-  { id: 'b1', type: QuestionType.MULTIPLE_CHOICE, topic: 'Networking', difficulty: 'EASY', text: 'Apa kepanjangan dari IP?', options: ['Internet Protocol', 'Internal Power', 'Instant Page'], weight: 5 },
-  { id: 'b2', type: QuestionType.MULTIPLE_CHOICE, topic: 'Hardware', difficulty: 'MEDIUM', text: 'Komponen mana yang disebut otak komputer?', options: ['RAM', 'CPU', 'GPU', 'SSD'], weight: 10 },
-  { id: 'b3', type: QuestionType.ESSAY, topic: 'Programming', difficulty: 'HARD', text: 'Jelaskan konsep Polymorphism dalam OOP.', weight: 30 },
-  { id: 'b4', type: QuestionType.SHORT_ANSWER, topic: 'Networking', difficulty: 'MEDIUM', text: 'Port default untuk HTTP adalah...', weight: 10 },
+  { id: 'b1', type: QuestionType.MULTIPLE_CHOICE, topic: 'Networking', difficulty: 'EASY', text: 'Apa kepanjangan dari IP?', options: ['Internet Protocol', 'Internal Power', 'Instant Page'], weight: 5, correctAnswer: 'Internet Protocol' },
+  { id: 'b2', type: QuestionType.MULTIPLE_CHOICE, topic: 'Hardware', difficulty: 'MEDIUM', text: 'Komponen mana yang disebut otak komputer?', options: ['RAM', 'CPU', 'GPU', 'SSD'], weight: 10, correctAnswer: 'CPU' },
+  { id: 'b3', type: QuestionType.ESSAY, topic: 'Programming', difficulty: 'HARD', text: 'Jelaskan konsep Polymorphism dalam OOP.', weight: 30, correctAnswer: 'Polymorphism adalah kemampuan suatu objek untuk mengambil banyak bentuk, biasanya melalui overriding atau overloading.' },
+  { id: 'b4', type: QuestionType.SHORT_ANSWER, topic: 'Networking', difficulty: 'MEDIUM', text: 'Port default untuk HTTP adalah...', weight: 10, correctAnswer: '80' },
 ];
 
 // Complete set of questions for the demo exam
 const DEMO_QUESTIONS: Question[] = [
-  { id: 'q1', type: QuestionType.MULTIPLE_CHOICE, difficulty: 'EASY', topic: 'Networking', text: 'Layer 3 di model OSI adalah?', options: ['Network', 'Transport', 'Data Link'], weight: 10 },
-  { id: 'q2', type: QuestionType.SHORT_ANSWER, difficulty: 'MEDIUM', topic: 'Networking', text: 'Apa singkatan dari RAM?', weight: 10 },
-  { id: 'q3', type: QuestionType.ESSAY, difficulty: 'HARD', topic: 'Networking', text: 'Jelaskan perbedaan mendalam antara TCP dan UDP.', weight: 30 }
+  { id: 'q1', type: QuestionType.MULTIPLE_CHOICE, difficulty: 'EASY', topic: 'Networking', text: 'Layer 3 di model OSI adalah?', options: ['Network', 'Transport', 'Data Link'], weight: 10, correctAnswer: 'Network' },
+  { id: 'q2', type: QuestionType.SHORT_ANSWER, difficulty: 'MEDIUM', topic: 'Networking', text: 'Apa singkatan dari RAM?', weight: 10, correctAnswer: 'Random Access Memory' },
+  { id: 'q3', type: QuestionType.ESSAY, difficulty: 'HARD', topic: 'Networking', text: 'Jelaskan perbedaan mendalam antara TCP dan UDP.', weight: 30, correctAnswer: 'TCP adalah berorientasi koneksi, menjamin pengiriman paket secara berurutan. UDP adalah tanpa koneksi, lebih cepat tapi tidak menjamin pengiriman paket.' }
 ];
 
 export const MOCK_EXAMS: ExamSession[] = [
@@ -46,7 +46,6 @@ export const MOCK_SUBMISSIONS: Submission[] = [
         questionId: 'q3', 
         answer: 'TCP adalah protokol berorientasi koneksi yang menjamin pengiriman data, sedangkan UDP adalah protokol tanpa koneksi yang mengutamakan kecepatan tanpa jaminan pengiriman.', 
         lastSaved: new Date().toISOString() 
-        // Note: Essay score is intentionally left empty for Assessor to grade
       }
     },
     flags: [],

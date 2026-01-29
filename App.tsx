@@ -35,17 +35,25 @@ const App: React.FC = () => {
 
   const t = translations[lang];
 
-  // Update HTML direction for RTL support (future-proofing)
+  // Ensure HTML attributes update for accessibility and future RTL
   useEffect(() => {
-    // Cast lang to string to satisfy TypeScript check for potential future values like 'ar'
-    document.documentElement.dir = ((lang as string) === 'ar' ? 'rtl' : 'ltr');
+    document.documentElement.lang = lang;
+    document.documentElement.dir = 'ltr';
   }, [lang]);
+
+  // Handle language switch with immediate reactive update
+  const handleLangSwitch = (newLang: 'id' | 'en') => {
+    setLang(newLang);
+    // If the user wants a full reload for absolute consistency:
+    // localStorage.setItem('cbt_lang_pref', newLang);
+    // window.location.reload();
+  };
 
   if (!role) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 transition-all duration-500">
         <div className="mb-6">
-          <LanguageSwitcher current={lang} onSwitch={setLang} variant="dark" />
+          <LanguageSwitcher current={lang} onSwitch={handleLangSwitch} variant="dark" />
         </div>
         <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-10 transform hover:scale-[1.01] transition-transform">
           <div className="text-center mb-10">
@@ -96,7 +104,7 @@ const App: React.FC = () => {
         onMenuChange={(m) => setActiveMenu(m)}
         onLogout={() => setRole(null)}
         lang={lang}
-        onLangChange={setLang}
+        onLangChange={handleLangSwitch}
       >
         {renderContent()}
       </AssessorLayout>
@@ -121,14 +129,14 @@ const App: React.FC = () => {
       );
     }
 
-    if (activeExam && preExamConfirmed) {
+    if (activeExam) {
       return (
         <ExamView 
           exam={activeExam} 
           state={examState} 
           updateAnswer={updateAnswer} 
           lang={lang} 
-          onLangChange={setLang}
+          onLangChange={handleLangSwitch}
           onFinish={() => setExamFinished(true)}
         />
       );
@@ -139,7 +147,7 @@ const App: React.FC = () => {
         <header className="bg-white border-b px-10 py-5 flex justify-between items-center shadow-sm">
           <div className="flex items-center gap-4">
             <div className="font-black text-2xl text-blue-600 tracking-tighter">SecureCBT</div>
-            <LanguageSwitcher current={lang} onSwitch={setLang} />
+            <LanguageSwitcher current={lang} onSwitch={handleLangSwitch} />
           </div>
           <div className="flex items-center gap-6">
              <div className="flex flex-col items-end">

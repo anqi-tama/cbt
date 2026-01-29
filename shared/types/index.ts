@@ -28,6 +28,7 @@ export interface Question {
   difficulty: 'EASY' | 'MEDIUM' | 'HARD';
   topic: string;
   sourcePackageId?: string;
+  correctAnswer?: string | number; // Added for assessment review
 }
 
 export interface KmsPackage {
@@ -197,7 +198,6 @@ export interface TranslationSchema {
     points: string;
     assessorNote: string;
   };
-  // Added admin property to match usage in translation files and fix TypeScript errors
   admin: {
     dashboard: string;
     manageEvents: string;

@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Button, LanguageSwitcher } from '../../../shared/ui';
+import { translations } from '../../../app/i18n';
 
 interface AssessorLayoutProps {
   children: React.ReactNode;
@@ -19,13 +20,16 @@ const AssessorLayout: React.FC<AssessorLayoutProps> = ({
   lang,
   onLangChange 
 }) => {
+  const t = translations[lang];
+
+  // Menu labels are now dynamic and react to lang state changes
   const menus = [
-    { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-    { id: 'builder', label: 'Paket Soal', icon: '📦' },
-    { id: 'monitoring', label: 'Monitoring', icon: '📡' },
-    { id: 'review', label: 'Review Jawaban', icon: '📝' },
-    { id: 'finalization', label: 'Finalisasi', icon: '🔒' },
-    { id: 'audit', label: 'Log Audit', icon: '📜' },
+    { id: 'dashboard', label: t.assessor.dashboard, icon: '📊' },
+    { id: 'builder', label: t.assessor.packageBuilder, icon: '📦' },
+    { id: 'monitoring', label: t.assessor.monitoring, icon: '📡' },
+    { id: 'review', label: t.assessor.reviewAnswers, icon: '📝' },
+    { id: 'finalization', label: t.assessor.finalization, icon: '🔒' },
+    { id: 'audit', label: t.assessor.auditLogs, icon: '📜' },
   ];
 
   return (
@@ -47,14 +51,14 @@ const AssessorLayout: React.FC<AssessorLayoutProps> = ({
                 key={menu.id}
                 onClick={() => onMenuChange(menu.id)}
                 className={`
-                  w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all
+                  w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-left
                   ${activeMenu === menu.id 
                     ? 'bg-indigo-600 text-white shadow-indigo-500/20 shadow-lg' 
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'}
                 `}
               >
-                <span>{menu.icon}</span>
-                {menu.label}
+                <span className="text-lg">{menu.icon}</span>
+                <span className="truncate">{menu.label}</span>
               </button>
             ))}
           </nav>
@@ -67,7 +71,7 @@ const AssessorLayout: React.FC<AssessorLayoutProps> = ({
           </div>
 
           <div className="flex items-center gap-3 px-2">
-            <div className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600" />
+            <div className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-[10px] font-bold text-white uppercase">BS</div>
             <div className="overflow-hidden">
               <p className="text-white text-xs font-bold truncate">Budi Santoso</p>
               <p className="text-slate-500 text-[10px]">Asesor Senior</p>

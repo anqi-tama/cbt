@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Submission, ExamSession, QuestionType, ReviewStatus, Question } from '../../../shared/types';
 import { Card, Badge, Button, ProgressBar } from '../../../shared/ui';
 import { DataTable, Column } from '../../../shared/ui/DataTable';
@@ -20,11 +20,52 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
   const [isApplied, setIsApplied] = useState(false);
   const [selectedExamId, setSelectedExamId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>('');
-  const [viewingSubmission, setViewingSubmission] = useState<Submission | null>(null);
+  const [viewingSubmissionId, setViewingSubmissionId] = useState<string | null>(null);
+  const [showKeys, setShowKeys] = useState(false);
   
   // AI State
   const [aiLoadingState, setAiLoadingState] = useState<Record<string, boolean>>({});
   const [aiSuggestions, setAiSuggestions] = useState<Record<string, { score: number; feedback: string }>>({});
+
+  // Fix: Added missing handleResetFilter function to resolve the "Cannot find name 'handleResetFilter'" error
+  const handleResetFilter = () => {
+    setSelectedExamId('');
+    setSelectedDate('');
+    setIsApplied(false);
+  };
+
+  // Helper to get letter from index (0 -> A, 1 -> B, etc)
+  const getOptionLabel = (index: number) => String.fromCharCode(65 + index);
+
+  // Helper to format answer with label if MCQ
+  const formatAnswerWithLabel = (q: Question, answerValue: any) => {
+    if (q.type === QuestionType.MULTIPLE_CHOICE && q.options) {
+      const idx = q.options.indexOf(String(answerValue));
+      if (idx !== -1) return `${getOptionLabel(idx)}. ${answerValue}`;
+    }
+    return answerValue;
+  };
+
+  const viewingSubmission = useMemo(() => 
+    submissions.find(s => s.id === viewingSubmissionId) || null
+  , [submissions, viewingSubmissionId]);
+
+  const selectedExam = useMemo(() => 
+    exams.find(e => e.id === (viewingSubmission?.examId || selectedExamId))
+  , [exams, viewingSubmission, selectedExamId]);
+
+  // AI Auto-trigger for Essays
+  useEffect(() => {
+    if (viewingSubmission && selectedExam) {
+      const essayQuestions = selectedExam.questions.filter(q => q.type === QuestionType.ESSAY);
+      essayQuestions.forEach(q => {
+        const ans = viewingSubmission.answers[q.id];
+        if (ans?.answer && ans.score === undefined && !aiSuggestions[q.id] && !aiLoadingState[q.id]) {
+          handleGetAISuggestion(viewingSubmission, q);
+        }
+      });
+    }
+  }, [viewingSubmissionId, selectedExam]);
 
   // Filter Logic
   const filteredSubmissions = useMemo(() => {
@@ -36,9 +77,6 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
     });
   }, [submissions, selectedExamId, selectedDate, isApplied]);
 
-  const selectedExam = exams.find(e => e.id === selectedExamId);
-
-  // Summary Metrics
   const summary = useMemo(() => {
     return {
       total: filteredSubmissions.length,
@@ -47,30 +85,22 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
     };
   }, [filteredSubmissions]);
 
-  const handleResetFilter = () => {
-    setSelectedExamId('');
-    setSelectedDate('');
-    setIsApplied(false);
-  };
-
   const getReviewStatus = (sub: Submission): ReviewStatus => {
     const exam = exams.find(e => e.id === sub.examId);
     if (!exam) return 'NOT_REVIEWED';
-
-    const essayQuestions = exam.questions.filter(q => q.type === QuestionType.ESSAY);
-    if (essayQuestions.length === 0) return 'REVIEWED';
-
-    const reviewedEssays = essayQuestions.filter(q => sub.answers[q.id]?.score !== undefined).length;
-
-    if (reviewedEssays === 0) return 'NOT_REVIEWED';
-    if (reviewedEssays < essayQuestions.length) return 'PARTIALLY_REVIEWED';
+    const manualGradable = exam.questions.filter(q => q.type === QuestionType.ESSAY || q.type === QuestionType.SHORT_ANSWER);
+    if (manualGradable.length === 0) return 'REVIEWED';
+    const reviewed = manualGradable.filter(q => sub.answers[q.id]?.score !== undefined).length;
+    if (reviewed === 0) return 'NOT_REVIEWED';
+    if (reviewed < manualGradable.length) return 'PARTIALLY_REVIEWED';
     return 'REVIEWED';
   };
 
   const calculateAutoScore = (sub: Submission) => {
+    const exam = exams.find(e => e.id === sub.examId);
     return Object.values(sub.answers).reduce((acc, ans) => {
-      const q = selectedExam?.questions.find(q => q.id === ans.questionId);
-      if (q && q.type !== QuestionType.ESSAY) return acc + (ans.score || 0);
+      const q = exam?.questions.find(q => q.id === ans.questionId);
+      if (q && q.type === QuestionType.MULTIPLE_CHOICE) return acc + (ans.score || 0);
       return acc;
     }, 0);
   };
@@ -82,14 +112,11 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
   const handleGetAISuggestion = async (sub: Submission, q: Question) => {
     const answer = sub.answers[q.id];
     if (!answer?.answer) return;
-
     setAiLoadingState(prev => ({ ...prev, [q.id]: true }));
     const result = await getAIGradingSuggestion(q.text, answer.answer as string, q.weight);
     if (result) {
       setAiSuggestions(prev => ({ ...prev, [q.id]: result }));
-      if (answer.score === undefined || answer.score === 0) {
-        onUpdateScore(sub.id, q.id, result.score, result.feedback);
-      }
+      onUpdateScore(sub.id, q.id, result.score, result.feedback);
     }
     setAiLoadingState(prev => ({ ...prev, [q.id]: false }));
   };
@@ -141,7 +168,7 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
       header: t.assessor.action,
       accessor: (s) => (
         <button 
-          onClick={(e) => { e.stopPropagation(); setViewingSubmission(s); }}
+          onClick={(e) => { e.stopPropagation(); setViewingSubmissionId(s.id); }}
           className="p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all border border-indigo-100 shadow-sm"
         >
           👁️
@@ -158,11 +185,11 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
 
     return (
       <div className="flex flex-col h-full animate-in slide-in-from-right duration-300">
-        {/* Detail Header Section */}
+        {/* Detail Header */}
         <div className="mb-8 mt-4">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-12">
-              <button onClick={() => setViewingSubmission(null)} className="text-slate-500 hover:text-slate-800 transition-colors flex items-center gap-2 font-medium text-sm">
+              <button onClick={() => setViewingSubmissionId(null)} className="text-slate-500 hover:text-slate-800 transition-colors flex items-center gap-2 font-medium text-sm">
                 ← Kembali
               </button>
               <div className="flex flex-col gap-2">
@@ -179,11 +206,22 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
                 </div>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Status Review</p>
-              <Badge variant={getReviewStatus(viewingSubmission) === 'REVIEWED' ? 'success' : 'warning'} className="px-4 py-1.5 text-xs">
-                {getReviewStatus(viewingSubmission).replace('_', ' ')}
-              </Badge>
+            <div className="flex items-center gap-8">
+              <div className="flex flex-col items-end">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Lihat Kunci Jawaban</p>
+                <button 
+                  onClick={() => setShowKeys(!showKeys)}
+                  className={`w-12 h-6 rounded-full transition-all relative ${showKeys ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                >
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${showKeys ? 'left-7' : 'left-1'}`} />
+                </button>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Status Review</p>
+                <Badge variant={getReviewStatus(viewingSubmission) === 'REVIEWED' ? 'success' : 'warning'} className="px-4 py-1.5 text-xs">
+                  {getReviewStatus(viewingSubmission).replace('_', ' ')}
+                </Badge>
+              </div>
             </div>
           </div>
         </div>
@@ -191,15 +229,18 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 flex-1 overflow-hidden">
           {/* Main Review Area */}
           <div className="lg:col-span-9 space-y-10 overflow-y-auto pr-6 pb-32 scrollbar-hide">
-            {selectedExam.questions.map((q, idx) => {
+            {selectedExam.questions.map((q) => {
               const ans = viewingSubmission.answers[q.id];
               const isEssay = q.type === QuestionType.ESSAY;
+              const isShort = q.type === QuestionType.SHORT_ANSWER;
+              const isMCQ = q.type === QuestionType.MULTIPLE_CHOICE;
               const hasSuggestion = !!aiSuggestions[q.id];
               const isLoading = !!aiLoadingState[q.id];
+              const isCorrect = String(ans?.answer) === String(q.correctAnswer);
               
               return (
                 <div key={q.id} className="space-y-4">
-                  <Card className={`p-10 border-2 transition-all duration-300 ${isEssay ? 'border-indigo-100 ring-4 ring-indigo-50/20' : 'border-slate-100 bg-slate-50/30'}`}>
+                  <Card className={`p-10 border-2 transition-all duration-300 ${(isEssay || isShort) ? 'border-indigo-100 ring-4 ring-indigo-50/20 shadow-lg' : 'border-slate-100 bg-slate-50/30'}`}>
                     <div className="flex justify-between items-start mb-6">
                       <div className="space-y-2">
                         <span className="text-[11px] font-black text-indigo-600 uppercase tracking-[0.2em]">{q.topic}</span>
@@ -210,44 +251,68 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
                     
                     <div className="space-y-8">
                       {/* Participant Answer Container */}
-                      <div className="p-6 bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-200 relative">
+                      <div className={`p-6 rounded-2xl border-2 border-dashed relative transition-all ${(isEssay || isShort) ? 'bg-slate-50/50 border-slate-200' : isCorrect ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-red-50 border-red-200 shadow-sm'}`}>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                          <span className={`w-1.5 h-1.5 rounded-full ${(isEssay || isShort) ? 'bg-slate-300' : isCorrect ? 'bg-green-400' : 'bg-red-400'}`} />
                           PESERTA ANSWER
                         </p>
-                        <div className="text-sm font-medium text-slate-700 leading-relaxed italic whitespace-pre-wrap">
-                          {ans?.answer || "— Peserta tidak memberikan jawaban —"}
+                        <div className={`text-sm font-black leading-relaxed italic whitespace-pre-wrap ${(!isEssay && !isShort && !isCorrect) ? 'text-red-700' : 'text-slate-800'}`}>
+                          {ans?.answer ? formatAnswerWithLabel(q, ans.answer) : "— Peserta tidak memberikan jawaban —"}
                         </div>
                       </div>
 
+                      {/* Answer Key (Show/Hide) */}
+                      {showKeys && q.correctAnswer && (
+                        <div className="p-6 bg-indigo-50/30 rounded-2xl border-2 border-indigo-100 animate-in fade-in slide-in-from-top-2 duration-300">
+                           <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                            KUNCI JAWABAN
+                          </p>
+                          <div className="text-sm font-black text-indigo-800 leading-relaxed uppercase">
+                            {formatAnswerWithLabel(q, q.correctAnswer)}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Grading Section */}
-                      {isEssay ? (
+                      {(isEssay || isShort) ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6">
-                          {/* AI Recommendation Panel */}
+                          {/* AI Panel (Only for Essay) */}
                           <div className="space-y-4">
                             <div className="flex items-center justify-between">
                               <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Rekomendasi Sistem (AI)</h4>
-                              <button 
-                                onClick={() => handleGetAISuggestion(viewingSubmission, q)}
-                                disabled={isLoading || !ans?.answer}
-                                className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 transition-colors uppercase flex items-center gap-1.5"
-                              >
-                                {isLoading ? 'Menganalisa...' : '✨ Dapatkan Saran AI'}
-                              </button>
+                              {isEssay && (
+                                <button 
+                                  onClick={() => handleGetAISuggestion(viewingSubmission, q)}
+                                  disabled={isLoading || !ans?.answer}
+                                  className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 transition-colors uppercase flex items-center gap-1.5"
+                                >
+                                  {isLoading ? 'Menganalisa...' : '✨ Dapatkan Saran AI'}
+                                </button>
+                              )}
                             </div>
 
-                            <div className={`min-h-[120px] rounded-2xl border-2 border-dotted flex items-center justify-center p-6 text-center
+                            <div className={`min-h-[120px] rounded-2xl border-2 border-dotted flex items-center justify-center p-6 text-center transition-all
                               ${hasSuggestion ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50/30 border-slate-200'}`}>
-                              {hasSuggestion ? (
-                                <div className="animate-in fade-in duration-500">
-                                   <div className="flex items-baseline gap-1 mb-2">
-                                      <span className="text-2xl font-black text-indigo-600">{aiSuggestions[q.id].score}</span>
-                                      <span className="text-[10px] font-bold text-slate-400 uppercase">/ {q.weight} Pts</span>
-                                   </div>
-                                   <p className="text-[11px] font-medium text-indigo-900 leading-relaxed italic">"{aiSuggestions[q.id].feedback}"</p>
-                                </div>
+                              {isEssay ? (
+                                hasSuggestion ? (
+                                  <div className="animate-in fade-in duration-500">
+                                     <div className="flex items-baseline gap-1 mb-2">
+                                        <span className="text-2xl font-black text-indigo-600">{aiSuggestions[q.id].score}</span>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase">/ {q.weight} Pts</span>
+                                     </div>
+                                     <p className="text-[11px] font-medium text-indigo-900 leading-relaxed italic">"{aiSuggestions[q.id].feedback}"</p>
+                                  </div>
+                                ) : isLoading ? (
+                                  <div className="flex flex-col items-center gap-3">
+                                    <div className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase">AI ANALYZING...</span>
+                                  </div>
+                                ) : (
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-10">AI will automatically analyze when opened</p>
+                                )
                               ) : (
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-10">Click button above to get AI Analysis</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-10 italic">Auto-analysis not available for Short Answer</p>
                               )}
                             </div>
                           </div>
@@ -262,8 +327,9 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
                                     type="number"
                                     max={q.weight}
                                     min={0}
-                                    defaultValue={ans?.score}
-                                    onBlur={(e) => onUpdateScore(viewingSubmission.id, q.id, parseFloat(e.target.value) || 0, ans?.feedback || '')}
+                                    step={0.5}
+                                    value={ans?.score ?? ''}
+                                    onChange={(e) => onUpdateScore(viewingSubmission.id, q.id, parseFloat(e.target.value) || 0, ans?.feedback || '')}
                                     placeholder="Enter final score..."
                                     className="w-full p-5 bg-white border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-black text-xl text-indigo-600 transition-all shadow-inner"
                                   />
@@ -274,8 +340,8 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
                               <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Catatan Asesor</label>
                                 <textarea 
-                                  defaultValue={ans?.feedback}
-                                  onBlur={(e) => onUpdateScore(viewingSubmission.id, q.id, ans?.score || 0, e.target.value)}
+                                  value={ans?.feedback ?? ''}
+                                  onChange={(e) => onUpdateScore(viewingSubmission.id, q.id, ans?.score || 0, e.target.value)}
                                   className="w-full p-5 bg-white border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none text-xs font-medium text-slate-600 resize-none h-24 transition-all shadow-inner"
                                   placeholder="Reasoning for this grade..."
                                 />
@@ -285,7 +351,14 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
                         </div>
                       ) : (
                         <div className="flex items-center justify-between p-5 bg-white border border-slate-200 rounded-2xl shadow-sm">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Auto Grader Score</span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Auto Grader Score</span>
+                            {isCorrect ? (
+                               <Badge variant="success" className="text-[8px] py-0 px-1.5">Matched</Badge>
+                            ) : (
+                               <Badge variant="danger" className="text-[8px] py-0 px-1.5">Mismatch</Badge>
+                            )}
+                          </div>
                           <div className="flex items-baseline gap-1">
                             <span className="text-2xl font-black text-slate-800">{ans?.score || 0}</span>
                             <span className="text-[10px] font-bold text-slate-300 uppercase">/ {q.weight}</span>
@@ -299,7 +372,7 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
             })}
           </div>
 
-          {/* Right Summary Sidebar */}
+          {/* Sidebar Summary */}
           <div className="lg:col-span-3 space-y-6">
             <Card className="p-8 bg-white border-slate-200 shadow-2xl rounded-[2rem] overflow-visible relative">
               <div className="space-y-12">
@@ -317,7 +390,7 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
                     <span className="text-8xl font-black text-indigo-600 leading-none tracking-tighter">{currentScore}</span>
                   </div>
                   <div className="mt-4 flex items-center gap-2">
-                    <span className="text-[10px] font-black text-slate-300 uppercase bg-slate-50 px-3 py-1 rounded-full">+{currentScore - calculateAutoScore(viewingSubmission)} Points Adjustment</span>
+                    <span className="text-[10px] font-black text-slate-300 uppercase bg-slate-50 px-3 py-1 rounded-full">+{currentScore - calculateAutoScore(viewingSubmission)} Adjustment</span>
                   </div>
                 </div>
 
@@ -325,7 +398,7 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
                   fullWidth 
                   variant="indigo" 
                   className="h-16 rounded-[1.25rem] text-sm font-black uppercase tracking-widest shadow-xl shadow-indigo-100"
-                  onClick={() => setViewingSubmission(null)}
+                  onClick={() => setViewingSubmissionId(null)}
                 >
                   Simpan Penilaian →
                 </Button>
@@ -333,7 +406,7 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
             </Card>
 
             <Card className="p-6 bg-slate-50 border-slate-100 rounded-2xl">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Grading Status</h4>
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Grading Info</h4>
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
                   <div className={`w-2.5 h-2.5 rounded-full ${getReviewStatus(viewingSubmission) === 'REVIEWED' ? 'bg-green-500' : 'bg-amber-400'}`} />
@@ -341,7 +414,7 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
                 </div>
                 <div className="p-3 bg-white/50 rounded-xl border border-white">
                   <p className="text-[9px] text-slate-400 font-bold uppercase leading-relaxed italic">
-                    Manual validation is required for all essay questions before results are finalized.
+                    For MCQs, scores are auto-calculated. For Essay and Short Answer, assessors must verify or provide scores manually.
                   </p>
                 </div>
               </div>
@@ -464,7 +537,7 @@ const Review: React.FC<ReviewProps> = ({ submissions, exams, lang, onUpdateScore
               columns={columns} 
               searchKey="candidateName" 
               searchPlaceholder={t.assessor.participant + '...'}
-              onRowClick={setViewingSubmission}
+              onRowClick={(s) => setViewingSubmissionId(s.id)}
             />
           </div>
         </div>
